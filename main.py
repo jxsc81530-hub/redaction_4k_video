@@ -1,14 +1,12 @@
 import asyncio
 import logging
 import os
+import traceback
 
 from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-
-from config import Config
-from handlers import start, photo, video
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -21,8 +19,9 @@ async def health(request):
 
 
 async def main():
-    config = Config.from_env()
-    os.makedirs(config.temp_dir, exist_ok=True)
+    token = os.environ.get("BOT_TOKEN", "")
+    logger.info("BOT_TOKEN: %s", "SET" if token else "MISSING")
+    os.makedirs("/tmp/bot_media", exist_ok=True)
 
     app = web.Application()
     app.router.add_get("/", health)
@@ -31,8 +30,15 @@ async def main():
     await web.TCPSite(runner, "0.0.0.0", PORT).start()
     logger.info("Healthcheck on port %d", PORT)
 
+    try:
+        from handlers import start, photo, video
+        logger.info("Handlers imported OK")
+    except Exception as e:
+        logger.error("Import error: %s\n%s", e, traceback.format_exc())
+        return
+
     bot = Bot(
-        token=config.bot_token,
+        token=token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher()
@@ -41,7 +47,7 @@ async def main():
     dp.include_router(photo.router)
     dp.include_router(video.router)
 
-    logger.info("Bot starting...")
+    logger.info("Bot starting polling...")
     await dp.start_polling(bot)
 
 
