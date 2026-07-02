@@ -13,6 +13,7 @@ from aiogram.types import (
     FSInputFile,
 )
 
+from config import Config
 from services.video_processor import enhance_video
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,8 @@ RESOLUTIONS = {
 
 FPS_OPTIONS = ["30", "60", "120"]
 AUDIO_OPTIONS = ["128k", "192k", "256k", "320k"]
+
+_video_storage: dict[str, Message] = {}
 
 
 def _resolution_keyboard(unique_id: str) -> InlineKeyboardMarkup:
@@ -54,7 +57,7 @@ def _audio_keyboard(unique_id: str, resolution: str, fps: str) -> InlineKeyboard
 
 
 async def _process_video(message: Message, resolution: str, fps: int, audio_bitrate: str):
-    config = message.bot.get("config") or message["config"]
+    config = Config.from_env()
     res = RESOLUTIONS[resolution]
 
     status = await message.answer(f"Processing video → {resolution} @ {fps} FPS, audio {audio_bitrate}...")
@@ -93,12 +96,7 @@ async def _process_video(message: Message, resolution: str, fps: int, audio_bitr
 @router.message(F.video)
 async def handle_video(message: Message):
     unique_id = uuid.uuid4().hex[:8]
-
-    video_storage = message.bot.get("video_storage_map")
-    if video_storage is None:
-        video_storage = {}
-        message.bot["video_storage_map"] = video_storage
-    video_storage[unique_id] = message
+    _video_storage[unique_id] = message
 
     await message.answer(
         "Select output resolution:",
@@ -141,8 +139,7 @@ async def handle_audio_choice(callback: CallbackQuery):
     fps = int(parts[3])
     audio_bitrate = parts[4]
 
-    video_storage = callback.bot.get("video_storage_map") or {}
-    original_msg = video_storage.pop(unique_id, None)
+    original_msg = _video_storage.pop(unique_id, None)
 
     if original_msg is None:
         await callback.answer("Original video expired. Send the video again.", show_alert=True)

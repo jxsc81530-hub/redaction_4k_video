@@ -26,8 +26,6 @@ async def main():
     )
     dp = Dispatcher()
 
-    dp["config"] = config
-
     dp.include_router(start.router)
     dp.include_router(photo.router)
     dp.include_router(video.router)

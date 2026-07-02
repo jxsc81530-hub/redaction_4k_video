@@ -13,10 +13,13 @@ from aiogram.types import (
     FSInputFile,
 )
 
+from config import Config
 from services.image_processor import enhance_image, PHOTO_PRESETS
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+_photo_storage: dict[str, Message] = {}
 
 
 def _quality_keyboard(unique_id: str) -> InlineKeyboardMarkup:
@@ -28,7 +31,7 @@ def _quality_keyboard(unique_id: str) -> InlineKeyboardMarkup:
 
 
 async def _process_photo(message: Message, quality: str):
-    config = message.bot.get("config") or message["config"]
+    config = Config.from_env()
     target_w, target_h = PHOTO_PRESETS[quality]
 
     status = await message.answer(f"Processing photo → {quality}...")
@@ -66,12 +69,7 @@ async def _process_photo(message: Message, quality: str):
 @router.message(F.photo)
 async def handle_photo(message: Message):
     unique_id = uuid.uuid4().hex[:8]
-
-    photo_storage = message.bot.get("photo_storage_map")
-    if photo_storage is None:
-        photo_storage = {}
-        message.bot["photo_storage_map"] = photo_storage
-    photo_storage[unique_id] = message
+    _photo_storage[unique_id] = message
 
     await message.answer(
         "Select output quality for your photo:",
@@ -85,8 +83,7 @@ async def handle_quality_choice(callback: CallbackQuery):
     unique_id = parts[1]
     quality = parts[2]
 
-    photo_storage = callback.bot.get("photo_storage_map") or {}
-    original_msg = photo_storage.pop(unique_id, None)
+    original_msg = _photo_storage.pop(unique_id, None)
 
     if original_msg is None:
         await callback.answer("Original photo expired. Send the photo again.", show_alert=True)
