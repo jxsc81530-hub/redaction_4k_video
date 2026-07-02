@@ -3,52 +3,39 @@ import logging
 import os
 
 from aiohttp import web
-
 from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
+from aiogram.filters import CommandStart
+from aiogram.types import Message
 
-from config import Config
-from handlers import start, photo, video
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-async def healthcheck(request):
+
+async def health(request):
     return web.Response(text="ok")
 
 
-async def start_http_server():
-    app = web.Application()
-    app.router.add_get("/", healthcheck)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8080)
-    await site.start()
-    logger.info("Healthcheck server on port 8080")
-
-
 async def main():
-    config = Config.from_env()
-    os.makedirs(config.temp_dir, exist_ok=True)
-
-    bot = Bot(
-        token=config.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-    )
+    bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
 
-    dp.include_router(start.router)
-    dp.include_router(photo.router)
-    dp.include_router(video.router)
+    @dp.message(CommandStart())
+    async def start(message: Message):
+        await message.answer("Bot works on Railway!")
 
-    await start_http_server()
+    @dp.message()
+    async def echo(message: Message):
+        await message.answer(f"Echo: {message.text}")
 
-    logger.info("Bot starting...")
+    app = web.Application()
+    app.router.add_get("/", health)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    await web.TCPSite(runner, "0.0.0.0", 8080).start()
+
+    logger.info("Bot starting on Railway...")
     await dp.start_polling(bot)
 
 

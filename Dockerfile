@@ -1,14 +1,4 @@
-FROM python:3.12-bookworm
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    ffmpeg \
-    libjpeg62-turbo-dev \
-    zlib1g-dev \
-    libwebp-dev \
-    libtiff-dev \
-    libopenjp2-7-dev && \
-    rm -rf /var/lib/apt/lists/*
+FROM python:3.12-slim
 
 WORKDIR /app
 COPY requirements.txt .
