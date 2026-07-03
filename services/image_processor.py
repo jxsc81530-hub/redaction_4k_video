@@ -16,7 +16,7 @@ def enhance_image(src: str, dst: str, target_w: int = 3840, target_h: int = 2160
 
     cmd = [
         "ffmpeg", "-y", "-i", src,
-        "-vf", f"scale={target_w}:{target_h}:flags=lanczos",
+        "-vf", f"scale={target_w}:{target_h}:flags=lanczos:force_original_aspect_ratio=decrease",
         "-q:v", "2",
         "-update", "1",
         dst,

@@ -16,7 +16,7 @@ def enhance_video(src: str, dst: str, preset: dict) -> str:
 
     cmd = [
         "ffmpeg", "-y", "-i", src,
-        "-vf", f"scale={w}:{h}:flags=lanczos",
+        "-vf", f"scale={w}:{h}:flags=lanczos:force_original_aspect_ratio=decrease",
         "-r", str(fps),
         "-c:v", "libx264",
         "-preset", "fast",
