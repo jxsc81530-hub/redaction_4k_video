@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import tempfile
 import uuid
 
 from aiogram import Router, F
@@ -12,9 +11,6 @@ from aiogram.types import (
     CallbackQuery,
     FSInputFile,
 )
-
-from config import Config
-from services.video_processor import enhance_video
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -29,7 +25,10 @@ RESOLUTIONS = {
 FPS_OPTIONS = ["30", "60", "120"]
 AUDIO_OPTIONS = ["128k", "192k", "256k", "320k"]
 
+TEMP_DIR = "/tmp/bot_media"
 _video_storage: dict[str, Message] = {}
+
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 
 def _resolution_keyboard(unique_id: str) -> InlineKeyboardMarkup:
@@ -54,43 +53,6 @@ def _audio_keyboard(unique_id: str, resolution: str, fps: str) -> InlineKeyboard
         for bitrate in AUDIO_OPTIONS
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-
-async def _process_video(message: Message, resolution: str, fps: int, audio_bitrate: str):
-    config = Config.from_env()
-    res = RESOLUTIONS[resolution]
-
-    status = await message.answer(f"Processing video → {resolution} @ {fps} FPS, audio {audio_bitrate}...")
-
-    video = message.video
-    file = await message.bot.get_file(video.file_id)
-
-    with tempfile.NamedTemporaryFile(suffix=".mp4", dir=config.temp_dir, delete=False) as f:
-        src = f.name
-        await message.bot.download_file(file.file_path, dst=f)
-
-    dst = src.replace(".mp4", f"_{resolution}_{fps}fps_{audio_bitrate}.mp4")
-
-    preset = {**res, "fps": fps, "audio_bitrate": audio_bitrate}
-
-    try:
-        result_path = await asyncio.to_thread(
-            enhance_video, src, dst, preset
-        )
-        await message.answer_document(
-            FSInputFile(result_path),
-            caption=f"Enhanced video ({resolution} @ {fps} FPS, audio {audio_bitrate})",
-        )
-    except Exception as e:
-        logger.exception("Video processing failed")
-        await message.answer(f"Error: {e}")
-    finally:
-        for p in (src, dst):
-            try:
-                os.unlink(p)
-            except OSError:
-                pass
-        await status.delete()
 
 
 @router.message(F.video)
@@ -140,12 +102,66 @@ async def handle_audio_choice(callback: CallbackQuery):
     audio_bitrate = parts[4]
 
     original_msg = _video_storage.pop(unique_id, None)
-
     if original_msg is None:
-        await callback.answer("Original video expired. Send the video again.", show_alert=True)
+        await callback.answer("Expired. Send the video again.", show_alert=True)
         return
 
     await callback.message.delete()
     await callback.answer()
 
-    await _process_video(original_msg, resolution, fps, audio_bitrate)
+    from services.video_processor import enhance_video
+
+    res = RESOLUTIONS[resolution]
+    preset = {**res, "fps": fps, "audio_bitrate": audio_bitrate}
+    status = await original_msg.answer(f"Processing video → {resolution} @ {fps} FPS, audio {audio_bitrate}...")
+
+    src = None
+    dst = None
+    try:
+        video = original_msg.video
+        logger.info("Step 1: getting video file info")
+        file = await asyncio.wait_for(
+            original_msg.bot.get_file(video.file_id), timeout=30
+        )
+        logger.info("Step 2: file path = %s", file.file_path)
+
+        src = os.path.join(TEMP_DIR, f"{uuid.uuid4().hex}.mp4")
+        dst = src.replace(".mp4", f"_{resolution}_{fps}fps_{audio_bitrate}.mp4")
+
+        logger.info("Step 3: downloading to %s", src)
+        await asyncio.wait_for(
+            original_msg.bot.download_file(file.file_path, dst=src),
+            timeout=120,
+        )
+        logger.info("Step 4: downloaded, size = %d", os.path.getsize(src))
+
+        logger.info("Step 5: processing with ffmpeg")
+        result_path = await asyncio.wait_for(
+            asyncio.to_thread(enhance_video, src, dst, preset),
+            timeout=600,
+        )
+        logger.info("Step 6: processed, sending")
+
+        await original_msg.answer_document(
+            FSInputFile(result_path),
+            caption=f"Enhanced video ({resolution} @ {fps} FPS, audio {audio_bitrate})",
+        )
+        logger.info("Step 7: sent!")
+
+    except asyncio.TimeoutError:
+        logger.error("Timeout during video processing")
+        await original_msg.answer("Processing timed out. Try a smaller video or lower quality.")
+    except Exception as e:
+        logger.exception("Video processing failed")
+        await original_msg.answer(f"Error: {e}")
+    finally:
+        for p in [src, dst]:
+            if p:
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
+        try:
+            await status.delete()
+        except Exception:
+            pass
