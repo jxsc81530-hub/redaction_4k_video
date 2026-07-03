@@ -29,11 +29,14 @@ async def main():
     await web.TCPSite(runner, "0.0.0.0", PORT).start()
     logger.info("Healthcheck on port %d", PORT)
 
+    logger.info("Importing aiogram...")
     from aiogram import Bot, Dispatcher
     from aiogram.client.default import DefaultBotProperties
     from aiogram.enums import ParseMode
-    from handlers import start, photo, video
-
+    logger.info("Importing handlers...")
+    from handlers.start import router as start_router
+    from handlers.photo import router as photo_router
+    from handlers.video import router as video_router
     logger.info("All imports OK")
 
     bot = Bot(
@@ -42,9 +45,9 @@ async def main():
     )
     dp = Dispatcher()
 
-    dp.include_router(start.router)
-    dp.include_router(photo.router)
-    dp.include_router(video.router)
+    dp.include_router(start_router)
+    dp.include_router(photo_router)
+    dp.include_router(video_router)
 
     logger.info("Starting polling...")
     await dp.start_polling(bot)
