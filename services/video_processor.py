@@ -15,25 +15,23 @@ def enhance_video(src: str, dst: str, preset: dict) -> str:
     logger.info("Enhancing video to %dx%d @ %d fps (crf=%d, audio=%s)", w, h, fps, crf, audio_bitrate)
 
     cmd = [
-        "ffmpeg",
-        "-y",
-        "-i", src,
-        "-vf",
-        f"scale={w}:{h}:flags=lanczos,"
-        f"eq=brightness=0.02:contrast=1.1,"
-        f"unsharp=3:3:0.5:3:3:0.0",
+        "ffmpeg", "-y", "-i", src,
+        "-vf", f"scale={w}:{h}:flags=lanczos",
         "-r", str(fps),
         "-c:v", "libx264",
-        "-preset", "medium",
+        "-preset", "fast",
         "-crf", str(crf),
         "-c:a", "aac",
         "-b:a", audio_bitrate,
         "-movflags", "+faststart",
+        "-threads", "1",
         dst,
     ]
 
-    logger.info("Running ffmpeg: %s", shlex.join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=1200)
+    logger.info("Running: %s", shlex.join(cmd))
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=600
+    )
 
     if result.returncode != 0:
         logger.error("ffmpeg stderr:\n%s", result.stderr[-2000:])

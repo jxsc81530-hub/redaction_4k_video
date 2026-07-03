@@ -16,13 +16,16 @@ def enhance_image(src: str, dst: str, target_w: int = 3840, target_h: int = 2160
 
     cmd = [
         "ffmpeg", "-y", "-i", src,
-        "-vf", f"scale={target_w}:{target_h}:flags=lanczos,unsharp=3:3:0.8",
+        "-vf", f"scale={target_w}:{target_h}:flags=lanczos",
         "-q:v", "2",
+        "-update", "1",
         dst,
     ]
 
     logger.info("Running: %s", shlex.join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=120
+    )
 
     if result.returncode != 0:
         logger.error("ffmpeg stderr:\n%s", result.stderr[-1000:])
