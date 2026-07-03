@@ -1,5 +1,6 @@
 import logging
-from PIL import Image, ImageFilter, ImageEnhance
+import subprocess
+import shlex
 
 logger = logging.getLogger(__name__)
 
@@ -11,26 +12,21 @@ PHOTO_PRESETS = {
 
 
 def enhance_image(src: str, dst: str, target_w: int = 3840, target_h: int = 2160) -> str:
-    img = Image.open(src)
+    logger.info("Enhancing image to %dx%d", target_w, target_h)
 
-    orig_w, orig_h = img.size
-    logger.info("Source image: %dx%d", orig_w, orig_h)
+    cmd = [
+        "ffmpeg", "-y", "-i", src,
+        "-vf", f"scale={target_w}:{target_h}:flags=lanczos,unsharp=3:3:0.8",
+        "-q:v", "2",
+        dst,
+    ]
 
-    if orig_w < target_w or orig_h < target_h:
-        ratio = min(target_w / orig_w, target_h / orig_h)
-        new_size = (int(orig_w * ratio), int(orig_h * ratio))
-        img = img.resize(new_size, Image.LANCZOS)
-        logger.info("Upscaled to %dx%d", *new_size)
+    logger.info("Running: %s", shlex.join(cmd))
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
-    img = ImageEnhance.Sharpness(img).enhance(1.4)
-    img = ImageEnhance.Contrast(img).enhance(1.1)
-    img = ImageEnhance.Color(img).enhance(1.05)
+    if result.returncode != 0:
+        logger.error("ffmpeg stderr:\n%s", result.stderr[-1000:])
+        raise RuntimeError(f"ffmpeg failed (code {result.returncode})")
 
-    img = img.filter(ImageFilter.DETAIL)
-
-    if img.mode in ("RGBA", "P"):
-        img = img.convert("RGB")
-
-    img.save(dst, quality=95)
     logger.info("Saved enhanced image: %s", dst)
     return dst
