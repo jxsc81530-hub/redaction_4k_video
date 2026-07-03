@@ -14,10 +14,15 @@ from aiogram.types import (
 )
 
 from config import Config
-from services.image_processor import enhance_image, PHOTO_PRESETS
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+PHOTO_PRESETS = {
+    "1080p": (1920, 1080),
+    "1440p": (2560, 1440),
+    "4k": (3840, 2160),
+}
 
 _photo_storage: dict[str, Message] = {}
 
@@ -31,6 +36,8 @@ def _quality_keyboard(unique_id: str) -> InlineKeyboardMarkup:
 
 
 async def _process_photo(message: Message, quality: str):
+    from services.image_processor import enhance_image
+
     config = Config.from_env()
     target_w, target_h = PHOTO_PRESETS[quality]
 
