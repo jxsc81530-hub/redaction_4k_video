@@ -54,8 +54,8 @@ async def _process_photo(message: Message, quality: str):
     dst = src.replace(ext, f"_{quality}{ext}")
 
     try:
-        result_path = await asyncio.get_event_loop().run_in_executor(
-            None, enhance_image, src, dst, target_w, target_h
+        result_path = await asyncio.to_thread(
+            enhance_image, src, dst, target_w, target_h
         )
         await message.answer_document(
             FSInputFile(result_path),

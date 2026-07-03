@@ -74,8 +74,8 @@ async def _process_video(message: Message, resolution: str, fps: int, audio_bitr
     preset = {**res, "fps": fps, "audio_bitrate": audio_bitrate}
 
     try:
-        result_path = await asyncio.get_event_loop().run_in_executor(
-            None, enhance_video, src, dst, preset
+        result_path = await asyncio.to_thread(
+            enhance_video, src, dst, preset
         )
         await message.answer_document(
             FSInputFile(result_path),

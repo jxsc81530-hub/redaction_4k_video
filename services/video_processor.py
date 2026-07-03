@@ -1,5 +1,6 @@
 import logging
 import subprocess
+import shlex
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ def enhance_video(src: str, dst: str, preset: dict) -> str:
         f"unsharp=3:3:0.5:3:3:0.0",
         "-r", str(fps),
         "-c:v", "libx264",
-        "-preset", "slow",
+        "-preset", "medium",
         "-crf", str(crf),
         "-c:a", "aac",
         "-b:a", audio_bitrate,
@@ -31,11 +32,11 @@ def enhance_video(src: str, dst: str, preset: dict) -> str:
         dst,
     ]
 
-    logger.info("Running ffmpeg: %s", " ".join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    logger.info("Running ffmpeg: %s", shlex.join(cmd))
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=1200)
 
     if result.returncode != 0:
-        logger.error("ffmpeg stderr:\n%s", result.stderr)
+        logger.error("ffmpeg stderr:\n%s", result.stderr[-2000:])
         raise RuntimeError(f"ffmpeg failed (code {result.returncode})")
 
     logger.info("Saved enhanced video: %s", dst)
