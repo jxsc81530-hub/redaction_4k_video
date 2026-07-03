@@ -130,7 +130,7 @@ async def handle_audio_choice(callback: CallbackQuery):
 
         logger.info("Step 3: downloading to %s", src)
         await asyncio.wait_for(
-            original_msg.bot.download_file(file.file_path, dst=src),
+            original_msg.bot.download_file(file.file_path, destination=src),
             timeout=120,
         )
         logger.info("Step 4: downloaded, size = %d", os.path.getsize(src))
